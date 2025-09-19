@@ -1,0 +1,13 @@
+# Secrets and API keys
+.streamlit/secrets.toml
+
+# Local feedback data
+feedback_data.csv
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment files
+.env
+*.env
