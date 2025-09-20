@@ -53,6 +53,8 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 # Initialize session state
 import os  # Add this at the top of your file if not already there
 
+import os  # Add this at the top of your file if not already there
+
 def init_session_state():
     """Initialize all session state variables"""
     if 'session_id' not in st.session_state:
@@ -82,17 +84,13 @@ def init_session_state():
                     
             if api_key:
                 st.session_state.anthropic_client = Anthropic(api_key=api_key)
-                # Remove warning messages when key is found
+                # API key found - client initialized successfully
             else:
                 st.session_state.anthropic_client = None
-                # Only show warning if not embedded
-                if not st.query_params.get("embed", ["false"])[0] == "true":
-                    st.warning("AI Analysis unavailable - API key not configured")
+                # Don't show warnings in the embedded view
         except Exception as e:
             st.session_state.anthropic_client = None
-            # Only show error if not embedded
-            if not st.query_params.get("embed", ["false"])[0] == "true":
-                st.error(f"Failed to initialize AI client: {e}")
+            # Silently fail for embedded views
 
 # Data loading functions
 @st.cache_data
