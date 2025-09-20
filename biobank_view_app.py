@@ -999,6 +999,12 @@ def main():
     # Initialize session state
     init_session_state()
     
+    # Temporary debug - remove after testing
+    if st.session_state.anthropic_client:
+        st.success("API client initialized successfully")
+    else:
+        st.error("API client not initialized")
+
     # No title - will be added on webpage
     
     # Render view selector cards
