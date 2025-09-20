@@ -51,6 +51,10 @@ hide_streamlit_style = """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # Initialize session state
+import os  # Add this at the top of your file if not already there
+
+import os  # Add this at the top of your file if not already there
+
 def init_session_state():
     """Initialize all session state variables"""
     if 'session_id' not in st.session_state:
@@ -66,14 +70,31 @@ def init_session_state():
         st.session_state.view_mode = 'biobank'
     
     if 'anthropic_client' not in st.session_state:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if api_key:
-            try:
-                st.session_state.anthropic_client = Anthropic(api_key=api_key)
-            except Exception as e:
+        env_key = os.environ.get("ANTHROPIC_API_KEY")
+        
+        try:
+            if env_key:
+                # Workaround for the proxies issue
+                import anthropic
+                # Use base_url instead of problematic parameters
+                st.session_state.anthropic_client = anthropic.Client(
+                    api_key=env_key
+                )
+                st.write("Debug: Anthropic client created successfully")
+            else:
                 st.session_state.anthropic_client = None
-        else:
-            st.session_state.anthropic_client = None
+                st.write("Debug: No API key found")
+                
+        except Exception as e:
+            # Try alternative initialization
+            try:
+                st.session_state.anthropic_client = Anthropic(
+                    api_key=env_key
+                )
+                st.write("Debug: Client created with alternative method")
+            except:
+                st.session_state.anthropic_client = None
+                st.write(f"Debug: Both methods failed: {str(e)}")
 
 # Data loading functions
 @st.cache_data
@@ -217,6 +238,9 @@ def get_ai_analysis(match, biobank_name, request_title):
         return "AI analysis unavailable - API key not configured"
     
     try:
+        # Add debug info
+        st.write("Debug: API client exists")  # Temporary debug line
+        
         knowledge_base = load_knowledge_base()
         prompt = generate_ai_prompt(match, biobank_name, request_title, knowledge_base)
         
@@ -230,6 +254,7 @@ def get_ai_analysis(match, biobank_name, request_title):
             ]
         )
         
+        st.write("Debug: Response received")  # Temporary debug line
         return response.content[0].text
         
     except Exception as e:
@@ -296,6 +321,7 @@ def save_feedback(feedback_type, context, comment=""):
     return True
 
 # Display functions
+
 def display_scoring_breakdown(match):
     """Display the simplified scoring breakdown in table format"""
     disease_score = match.get('s_disease', 0)
@@ -710,18 +736,18 @@ def render_view_selector():
         with card1:
             # Biobank View Card
             if st.session_state.view_mode == 'biobank':
-                # Selected state - show as highlighted card
+                # Selected state - show as highlighted card with a simple icon
                 st.markdown("""
                 <div style='text-align: center; padding: 20px; border: 3px solid #FF6B35; 
                             background-color: #FFF5F0; border-radius: 10px; cursor: pointer;'>
-                    <div style='font-size: 40px; margin: 10px;'>BIOBANK</div>
+                    <div style='font-size: 40px; margin: 10px;'>🏛</div>
                     <div style='font-weight: bold; font-size: 16px; margin: 5px;'>BIOBANK VIEW</div>
                     <div style='color: #666; font-size: 12px;'>For biobanks to find requests</div>
                 </div>
                 """, unsafe_allow_html=True)
             else:
                 # Unselected state - clickable button
-                if st.button("**BIOBANK VIEW**\nFor biobanks to find requests", 
+                if st.button("🏛\n**BIOBANK VIEW**\nFor biobanks to find requests", 
                            key="biobank_btn", 
                            use_container_width=True):
                     st.session_state.view_mode = 'biobank'
@@ -730,18 +756,18 @@ def render_view_selector():
         with card2:
             # Request View Card  
             if st.session_state.view_mode == 'request':
-                # Selected state - show as highlighted card
+                # Selected state - show as highlighted card with a simple icon
                 st.markdown("""
                 <div style='text-align: center; padding: 20px; border: 3px solid #FF6B35; 
                             background-color: #FFF5F0; border-radius: 10px; cursor: pointer;'>
-                    <div style='font-size: 40px; margin: 10px;'>REQUEST</div>
+                    <div style='font-size: 40px; margin: 10px;'>📋</div>
                     <div style='font-weight: bold; font-size: 16px; margin: 5px;'>REQUEST VIEW</div>
                     <div style='color: #666; font-size: 12px;'>For researchers to find biobanks</div>
                 </div>
                 """, unsafe_allow_html=True)
             else:
                 # Unselected state - clickable button
-                if st.button("**REQUEST VIEW**\nFor researchers to find biobanks", 
+                if st.button("📋\n**REQUEST VIEW**\nFor researchers to find biobanks", 
                            key="request_btn", 
                            use_container_width=True):
                     st.session_state.view_mode = 'request'
@@ -945,18 +971,19 @@ def render_request_view(match_scores):
                 
                 # Color code the expander based on score
                 if lead_score >= 8:
-                    score_indicator = "[HIGH]"
+                    score_emoji = "HIGH"
                 elif lead_score >= 6:
-                    score_indicator = "[MEDIUM]"
+                    score_emoji = "MEDIUM"
                 else:
-                    score_indicator = "[LOW]"
+                    score_emoji = "LOW"
                 
                 with st.expander(
-                    f"{score_indicator} **Rank {idx + 1}:** {biobank_name} (Score: {lead_score:.1f}/10)",
+                    f"{score_emoji} **Rank {idx + 1}:** {biobank_name} (Score: {lead_score:.1f}/10)",
                     expanded=(idx == 0)  # Only expand the first (top-ranked) match
                 ):
                     st.markdown(f"## {biobank_name}")
                     
+                    # Skip location/specialty box - go straight to table
                     # Display scoring breakdown
                     display_scoring_breakdown(match)
                     
@@ -975,6 +1002,14 @@ def render_request_view(match_scores):
 def main():
     # Initialize session state
     init_session_state()
+    
+    # Temporary debug - remove after testing
+    if st.session_state.anthropic_client:
+        st.success("API client initialized successfully")
+    else:
+        st.error("API client not initialized")
+
+    # No title - will be added on webpage
     
     # Render view selector cards
     render_view_selector()
