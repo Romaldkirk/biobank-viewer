@@ -234,6 +234,9 @@ def get_ai_analysis(match, biobank_name, request_title):
         return "AI analysis unavailable - API key not configured"
     
     try:
+        # Add debug info
+        st.write("Debug: API client exists")  # Temporary debug line
+        
         knowledge_base = load_knowledge_base()
         prompt = generate_ai_prompt(match, biobank_name, request_title, knowledge_base)
         
@@ -247,6 +250,7 @@ def get_ai_analysis(match, biobank_name, request_title):
             ]
         )
         
+        st.write("Debug: Response received")  # Temporary debug line
         return response.content[0].text
         
     except Exception as e:
