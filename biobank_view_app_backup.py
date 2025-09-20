@@ -1,7 +1,6 @@
 """
 Enhanced Biobank Viewer with AI Analysis and Feedback Collection
 Includes inline Claude Haiku integration and anonymous feedback system
-Updated with card-style view selector and refined UI
 """
 
 import streamlit as st
@@ -29,18 +28,25 @@ hide_streamlit_style = """
     section.main > div:has(~ footer) {
         padding-bottom: 1rem;
     }
-    /* Custom styling for AI Analysis button - always orange */
-    div.stButton > button {
+    /* Custom styling for AI Analysis button - orange with white text */
+    button[key*="ai_btn_"] {
         background-color: #FF6B35 !important;
         color: white !important;
         font-weight: bold !important;
         border: none !important;
-        padding: 0.75rem 1.5rem !important;
-        font-size: 16px !important;
+        padding: 0.5rem 1.5rem !important;
+        width: auto !important;
+        margin: 1rem 0 !important;
     }
-    div.stButton > button:hover {
+    button[key*="ai_btn_"]:hover {
         background-color: #FF5722 !important;
-        transform: scale(1.02) !important;
+        color: white !important;
+    }
+    /* Feedback buttons styling */
+    .feedback-container {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e0e0e0;
     }
     /* Text area styling */
     .stTextArea textarea {
@@ -61,9 +67,6 @@ def init_session_state():
     
     if 'feedback_data' not in st.session_state:
         st.session_state.feedback_data = []
-    
-    if 'view_mode' not in st.session_state:
-        st.session_state.view_mode = 'biobank'
     
     if 'anthropic_client' not in st.session_state:
         # Initialize Anthropic client with API key from secrets
@@ -122,7 +125,7 @@ def generate_ai_prompt(match, biobank_name, request_title, knowledge_base):
     r_sample_format = match.get('r_sample_format', 'Not specified')
     r_country = match.get('r_country', 'Not specified')
     r_collaboration = match.get('r_collaboration', 'Not specified')
-    r_prospective = match.get('r_prospective', 'Not specified')
+    r_prospective = match.get('r_prospective', 'Not specified')  # PROSPECTIVE COLLECTION
     
     # Additional request context if available
     r_post_content = match.get('r_post_content', '')
@@ -137,7 +140,7 @@ def generate_ai_prompt(match, biobank_name, request_title, knowledge_base):
     b_sample_format = match.get('b_sample_format', 'Not specified')
     b_country = match.get('b_country', 'Not specified')
     b_collaboration = match.get('b_collaboration', 'Not specified')
-    b_prospective = match.get('b_prospective', 'Not specified')
+    b_prospective = match.get('b_prospective', 'Not specified')  # PROSPECTIVE CAPABILITY
     biobank_specialty = match.get('biobank_specialty', 'Not specified')
     
     # Additional biobank context if available
@@ -193,7 +196,7 @@ Additional Context:
 ### COLLABORATION TERMS:
 Request prefers: {r_collaboration}
 Biobank requires: {b_collaboration}
-**IMPORTANT:** If biobank requires "Yes" (mandatory collaboration) but request prefers "fee-for-service", these are INCOMPATIBLE and will require negotiation.
+**IMPORTANT:** If biobank requires "Yes" (mandatory collaboration) but request prefers "No" or "fee-for-service", these are INCOMPATIBLE and will require negotiation.
 
 ### PROSPECTIVE COLLECTION:
 Request needs: {r_prospective}
@@ -299,7 +302,6 @@ def save_feedback(feedback_type, context, comment=""):
     return True
 
 # Display functions
-
 def display_scoring_breakdown(match):
     """Display the simplified scoring breakdown in table format"""
     disease_score = match.get('s_disease', 0)
@@ -309,15 +311,15 @@ def display_scoring_breakdown(match):
     # Prepare data for display
     st.markdown("### Match Details Comparison")
     
-    # Create columns for the table-like display - no header for first column
+    # Create columns for the table-like display
     col1, col2, col3, col4 = st.columns([1.5, 2, 2, 1.5])
     
     with col1:
-        st.markdown("")  # Empty header for Requirement column
+        st.markdown("**Requirement**")
     with col2:
-        st.markdown("**Request**")
+        st.markdown("**Request Requirements**")
     with col3:
-        st.markdown("**Biobank**")
+        st.markdown("**Biobank Capabilities**")
     with col4:
         st.markdown("**Matching Logic**")
     
@@ -404,7 +406,7 @@ def display_scoring_breakdown(match):
     with col4:
         st.write(f"Match score: {int(format_score)}/2")
     
-    # Geographic Location row
+    # Geographic Location row (NEW)
     col1, col2, col3, col4 = st.columns([1.5, 2, 2, 1.5])
     
     r_country = match.get('r_country', 'Not specified')
@@ -412,18 +414,18 @@ def display_scoring_breakdown(match):
     
     # Determine geographic compatibility
     if r_country == b_country and r_country != 'Not specified':
-        geo_logic = "Same country"
+        geo_logic = "✅ Same country"
     elif r_country == 'Not specified' or b_country == 'Not specified':
-        geo_logic = "Location unclear"
+        geo_logic = "❓ Location unclear"
     else:
         # Check for common regional blocks
         eu_countries = ['Germany', 'France', 'Spain', 'Italy', 'Netherlands', 'Belgium', 'Austria', 'Poland']
         if r_country in eu_countries and b_country in eu_countries:
-            geo_logic = "Both in EU"
+            geo_logic = "🇪🇺 Both in EU"
         elif (r_country == 'United States' and b_country == 'Canada') or (r_country == 'Canada' and b_country == 'United States'):
-            geo_logic = "US-Canada"
+            geo_logic = "🌎 US-Canada"
         else:
-            geo_logic = f"Cross-border ({calculate_distance(r_country, b_country)})"
+            geo_logic = f"🌍 Cross-border ({calculate_distance(r_country, b_country)})"
     
     with col1:
         st.write("**Location:**")
@@ -434,58 +436,27 @@ def display_scoring_breakdown(match):
     with col4:
         st.write(geo_logic)
     
-    # Preferred Terms of Engagement row
+    # Collaboration Terms row
     col1, col2, col3, col4 = st.columns([1.5, 2, 2, 1.5])
     
     r_collaboration = match.get('r_collaboration', 'Not specified')
     b_collaboration = match.get('b_collaboration', 'Not specified')
     
-    # Format request collaboration for display with proper capitalization
-    if r_collaboration.lower() == 'fee-for-service':
-        r_collab_display = 'Fee-for-service'
-    elif r_collaboration.lower() == 'collaboration & co-publication':
-        r_collab_display = 'Collaboration & co-publication'
-    elif r_collaboration.lower() == 'open to discussion':
-        r_collab_display = 'Open to discussion'
-    elif r_collaboration.lower() == 'it depends':
-        r_collab_display = 'It depends'
-    elif r_collaboration.lower() == 'other':
-        r_collab_display = 'Other'
-    else:
-        r_collab_display = r_collaboration
-    
-    # Convert biobank collaboration values to new terminology
-    if b_collaboration == 'Yes':
-        b_collab_display = 'Collaboration required'
-    elif b_collaboration == 'Yes if possible':
-        b_collab_display = 'Collaboration if possible'
-    elif b_collaboration == 'No':
-        b_collab_display = 'Collaboration not required'
-    elif b_collaboration == 'Sometimes':
-        b_collab_display = 'Collaboration sometimes required'
-    else:
-        b_collab_display = b_collaboration if b_collaboration else 'Not specified'
-    
-    # Determine compatibility logic for collaboration
-    if r_collaboration.lower() == 'open to discussion':
-        collab_logic = "Flexible"
-    elif r_collaboration.lower() in ['it depends', 'other']:
-        collab_logic = "Check specifics"
-    elif r_collaboration.lower() == 'fee-for-service' and b_collaboration == 'Yes':
-        collab_logic = "Conflict"
-    elif r_collaboration.lower() == 'collaboration & co-publication' and b_collaboration == 'No':
-        collab_logic = "Conflict"
-    elif b_collaboration in ['Not specified', '', None]:
-        collab_logic = "Terms unclear"
+    if r_collaboration == b_collaboration and r_collaboration != 'Not specified':
+        collab_logic = "✅ Aligned"
+    elif b_collaboration == 'Not specified':
+        collab_logic = "❓ Terms unclear"
+    elif r_collaboration == 'fee-for-service' and b_collaboration == 'Yes':
+        collab_logic = "⚠️ Conflict"
     else:
         collab_logic = "Check compatibility"
     
     with col1:
-        st.write("**Preferred Terms of Engagement:**")
+        st.write("**Collaboration:**")
     with col2:
-        st.write(r_collab_display)
+        st.write(r_collaboration)
     with col3:
-        st.write(b_collab_display)
+        st.write(b_collaboration)
     with col4:
         st.write(collab_logic)
     
@@ -495,42 +466,21 @@ def display_scoring_breakdown(match):
     r_prospective = match.get('r_prospective', 'Not specified')
     b_prospective = match.get('b_prospective', 'Not specified')
     
-    # Format request prospective for display
-    if r_prospective == 'Yes':
-        r_prosp_display = 'Requires prospective collection'
-    elif r_prospective == 'No':
-        r_prosp_display = 'Does not require prospective collection'
-    else:
-        r_prosp_display = 'Not specified'
-    
-    # Format biobank prospective for display
-    if b_prospective == 'Yes':
-        b_prosp_display = 'Can do prospective collection'
-    elif b_prospective == 'No':
-        b_prosp_display = 'Cannot do prospective collection'
-    elif b_prospective == 'Sometimes':
-        b_prosp_display = 'Can sometimes do prospective collection'
-    else:
-        b_prosp_display = 'Not specified'
-    
-    # Determine prospective compatibility
     if r_prospective == 'Yes' and b_prospective == 'No':
-        prospective_logic = "Cannot meet"
-    elif r_prospective == 'Yes' and b_prospective == 'Sometimes':
-        prospective_logic = "Conditional"
+        prospective_logic = "❌ Cannot meet"
     elif r_prospective == b_prospective and r_prospective != 'Not specified':
-        prospective_logic = "Aligned"
-    elif b_prospective == 'Not specified' or r_prospective == 'Not specified':
-        prospective_logic = "Unclear"
+        prospective_logic = "✅ Aligned"
+    elif b_prospective == 'Not specified':
+        prospective_logic = "❓ Unclear"
     else:
         prospective_logic = "Compatible"
     
     with col1:
-        st.write("**Prospective Collection:**")
+        st.write("**Prospective:**")
     with col2:
-        st.write(r_prosp_display)
+        st.write(r_prospective)
     with col3:
-        st.write(b_prosp_display)
+        st.write(b_prospective)
     with col4:
         st.write(prospective_logic)
     
@@ -564,6 +514,7 @@ def display_scoring_breakdown(match):
 
 def calculate_distance(country1, country2):
     """Simple helper to describe geographic relationship"""
+    # This is a simplified approach - you could expand with actual distance calculations
     if country1 == 'Not specified' or country2 == 'Not specified':
         return "unknown"
     
@@ -596,18 +547,18 @@ def display_ai_analysis_section(match, biobank_name, request_title, match_key):
             'feedback_given': False
         }
     
-    # AI Analysis button - styled without columns
-    st.markdown("---")  # Add a separator line above
-    if st.button("Get AI Analysis", key=f"ai_btn_{match_key}"):
-        with st.spinner("Analyzing partnership compatibility..."):
-            analysis = get_ai_analysis(match, biobank_name, request_title)
-            st.session_state.ai_analyses[analysis_key]['analysis'] = analysis
-            st.rerun()
-        
+    # AI Analysis button with custom styling via HTML
+    col1, col2, col3 = st.columns([2, 3, 2])
+    with col1:
+        if st.button("🤖 **Get AI Analysis**", key=f"ai_btn_{match_key}", type="primary"):
+            with st.spinner("Analyzing partnership compatibility..."):
+                analysis = get_ai_analysis(match, biobank_name, request_title)
+                st.session_state.ai_analyses[analysis_key]['analysis'] = analysis
+                st.rerun()
+    
     # Display analysis if available
     if st.session_state.ai_analyses[analysis_key]['analysis']:
-        st.markdown("### AI Partnership Assessment")
-        # Display analysis directly without word count
+        st.markdown("### 🤖 AI Partnership Assessment")
         st.write(st.session_state.ai_analyses[analysis_key]['analysis'])
         
         # Display Q&A history
@@ -617,7 +568,7 @@ def display_ai_analysis_section(match, biobank_name, request_title, match_key):
         
         # Follow-up question form
         with st.form(key=f"qa_form_{match_key}_{len(st.session_state.ai_analyses[analysis_key]['qa_history'])}"):
-            st.markdown("#### Ask a follow-up question")
+            st.markdown("#### 💬 Ask a follow-up question")
             question = st.text_input(
                 "Your question:",
                 placeholder="e.g., What are the specific regulatory requirements for this transfer?"
@@ -648,7 +599,7 @@ def display_ai_analysis_section(match, biobank_name, request_title, match_key):
         # Enhanced feedback section with text input
         if not st.session_state.ai_analyses[analysis_key]['feedback_given']:
             st.markdown("---")
-            st.markdown("### Feedback")
+            st.markdown("### 📝 Feedback")
             st.write("Help us improve by sharing your feedback about this match and AI analysis:")
             
             # Feedback form with text input
@@ -690,90 +641,28 @@ def display_ai_analysis_section(match, biobank_name, request_title, match_key):
                     
                     if save_feedback(feedback_type_map[feedback_type], context, feedback_comment):
                         st.session_state.ai_analyses[analysis_key]['feedback_given'] = True
-                        st.success("Thank you for your feedback! Your input helps us improve the system.")
+                        st.success("✅ Thank you for your feedback! Your input helps us improve the system.")
                         st.rerun()
         
         # If feedback was already given, show thank you message
         elif st.session_state.ai_analyses[analysis_key]['feedback_given']:
             st.markdown("---")
-            st.info("Thank you for providing feedback on this match!")
+            st.info("✅ Thank you for providing feedback on this match!")
 
-def render_view_selector():
-    """Render card-style view selector with clickable cards"""
+# Main application
+def main():
+    # Initialize session state
+    init_session_state()
     
-    # Center the title
-    st.markdown("<h3 style='text-align: center; margin-bottom: 30px;'>Choose Your View Mode</h3>", unsafe_allow_html=True)
+    st.title("🏥 Biobank Partnership Opportunities")
+    st.info("Select a biobank to explore matching research requests and get AI-powered partnership assessments")
     
-    # Create centered layout
-    col1, col2, col3 = st.columns([1, 2, 1])
+    # Load data
+    match_scores = load_match_data()
     
-    with col2:
-        # Create two sub-columns for the cards
-        card1, spacer, card2 = st.columns([1, 0.2, 1])
-        
-        with card1:
-            # Biobank View Card
-            if st.session_state.view_mode == 'biobank':
-                # Selected state - show as highlighted card with a simple icon
-                st.markdown("""
-                <div style='text-align: center; padding: 20px; border: 3px solid #FF6B35; 
-                            background-color: #FFF5F0; border-radius: 10px; cursor: pointer;'>
-                    <div style='font-size: 40px; margin: 10px;'>🏛</div>
-                    <div style='font-weight: bold; font-size: 16px; margin: 5px;'>BIOBANK VIEW</div>
-                    <div style='color: #666; font-size: 12px;'>For biobanks to find requests</div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                # Unselected state - clickable button
-                if st.button("🏛\n**BIOBANK VIEW**\nFor biobanks to find requests", 
-                           key="biobank_btn", 
-                           use_container_width=True):
-                    st.session_state.view_mode = 'biobank'
-                    st.rerun()
-        
-        with card2:
-            # Request View Card  
-            if st.session_state.view_mode == 'request':
-                # Selected state - show as highlighted card with a simple icon
-                st.markdown("""
-                <div style='text-align: center; padding: 20px; border: 3px solid #FF6B35; 
-                            background-color: #FFF5F0; border-radius: 10px; cursor: pointer;'>
-                    <div style='font-size: 40px; margin: 10px;'>📋</div>
-                    <div style='font-weight: bold; font-size: 16px; margin: 5px;'>REQUEST VIEW</div>
-                    <div style='color: #666; font-size: 12px;'>For researchers to find biobanks</div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                # Unselected state - clickable button
-                if st.button("📋\n**REQUEST VIEW**\nFor researchers to find biobanks", 
-                           key="request_btn", 
-                           use_container_width=True):
-                    st.session_state.view_mode = 'request'
-                    st.rerun()
-    
-    # Add CSS to style the unselected buttons
-    st.markdown("""
-    <style>
-        /* Style the buttons to look more card-like */
-        [data-testid="stButton"] button {
-            height: 140px !important;
-            border: 2px solid #E0E0E0 !important;
-            border-radius: 10px !important;
-            background-color: white !important;
-            white-space: pre-line !important;
-            transition: all 0.2s ease !important;
-        }
-        [data-testid="stButton"] button:hover {
-            border-color: #FF6B35 !important;
-            transform: translateY(-2px) !important;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-            
-def render_biobank_view(match_scores):
-    """Render the biobank-centric view"""
-    st.info("Select a biobank to explore matching research requests")
+    if match_scores.empty:
+        st.error("No data available. Please check data files.")
+        return
     
     # Get unique biobanks
     unique_biobanks = sorted(match_scores['biobank_name'].unique())
@@ -789,7 +678,7 @@ def render_biobank_view(match_scores):
         )
     
     with col2:
-        st.metric("Biobanks with Relevant Matches", len(unique_biobanks))
+        st.metric("Total Biobanks", len(unique_biobanks))
     
     if selected_biobank:
         # Get matches for selected biobank
@@ -823,11 +712,11 @@ def render_biobank_view(match_scores):
             lead_score = match.get('LeadScore', 0)
             
             # Create unique key for this match
-            match_key = f"biobank_{selected_biobank}_{request_title}_{idx}"
+            match_key = f"{selected_biobank}_{request_title}_{idx}"
             
             with st.expander(
                 f"**Match {idx + 1}:** {request_title} (Score: {lead_score:.1f}/10)",
-                expanded=(idx == 0)  # Only expand the first match
+                expanded=(idx == 0)  # Expand first match only
             ):
                 st.markdown(f"## {request_title}")
                 
@@ -844,161 +733,6 @@ def render_biobank_view(match_scores):
                     request_title,
                     match_key
                 )
-
-def render_request_view(match_scores):
-    """Render the request-centric view"""
-    st.info("Select a research request to see the best matching biobanks")
-    
-    # Get unique requests
-    unique_requests = sorted(match_scores['post_title'].unique())
-    
-    # Request selector
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        selected_request = st.selectbox(
-            "Select Research Request",
-            options=unique_requests,
-            key="request_selector"
-        )
-    
-    with col2:
-        st.metric("Total Requests", len(unique_requests))
-    
-    if selected_request:
-        # Get matches for selected request
-        request_matches = match_scores[
-            match_scores['post_title'] == selected_request
-        ].copy()
-        
-        # Sort by LeadScore descending (best matches first)
-        if 'LeadScore' in request_matches.columns:
-            request_matches = request_matches.sort_values('LeadScore', ascending=False)
-        
-        st.markdown(f"## {selected_request}")
-        
-        # Display request details if available
-        if not request_matches.empty:
-            first_match = request_matches.iloc[0]
-            
-            # Show request requirements in a clean box
-            with st.container():
-                st.markdown("### Request Requirements")
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    r_disease = first_match.get('r_disease', 'Not specified')
-                    if r_disease != 'Not specified':
-                        r_disease = r_disease.replace(',', ', ')
-                    st.write(f"**Disease Focus:** {r_disease}")
-                    
-                    r_sample_type = first_match.get('r_sample_type', 'Not specified')
-                    if r_sample_type != 'Not specified':
-                        r_sample_type = r_sample_type.replace(',', ', ')
-                    st.write(f"**Sample Type:** {r_sample_type}")
-                
-                with col2:
-                    r_sample_format = first_match.get('r_sample_format', 'Not specified')
-                    if r_sample_format != 'Not specified':
-                        r_sample_format = r_sample_format.replace(',', ', ')
-                    st.write(f"**Sample Format:** {r_sample_format}")
-                    
-                    r_country = first_match.get('r_country', 'Not specified')
-                    st.write(f"**Location:** {r_country}")
-                
-                with col3:
-                    r_collaboration = first_match.get('r_collaboration', 'Not specified')
-                    st.write(f"**Collaboration:** {r_collaboration}")
-                    
-                    r_prospective = first_match.get('r_prospective', 'Not specified')
-                    st.write(f"**Prospective:** {r_prospective}")
-        
-        # Display metrics
-        st.markdown("---")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Matching Biobanks", len(request_matches))
-        with col2:
-            avg_score = request_matches['LeadScore'].mean()
-            st.metric("Average Score", f"{avg_score:.1f}/10")
-        with col3:
-            high_matches = len(request_matches[request_matches['LeadScore'] >= 7])
-            st.metric("High Matches (7+)", high_matches)
-        with col4:
-            perfect_matches = len(request_matches[request_matches['LeadScore'] >= 9.5])
-            st.metric("Near-Perfect (9.5+)", perfect_matches)
-        
-        st.markdown("---")
-        
-        # Display top 10 matches (removed filter controls)
-        st.markdown(f"### Top 10 Biobanks for This Request")
-        
-        # Get top 10 matches with score >= 5
-        filtered_matches = request_matches[request_matches['LeadScore'] >= 5.0].head(10)
-        
-        if len(filtered_matches) == 0:
-            st.warning("No biobanks found with LeadScore >= 5.0")
-        else:
-            # Display each biobank match
-            for idx, (_, match) in enumerate(filtered_matches.iterrows()):
-                biobank_name = match.get('biobank_name', 'Unknown Biobank')
-                lead_score = match.get('LeadScore', 0)
-                
-                # Create unique key for this match
-                match_key = f"request_{selected_request}_{biobank_name}_{idx}"
-                
-                # Color code the expander based on score
-                if lead_score >= 8:
-                    score_emoji = "HIGH"
-                elif lead_score >= 6:
-                    score_emoji = "MEDIUM"
-                else:
-                    score_emoji = "LOW"
-                
-                with st.expander(
-                    f"{score_emoji} **Rank {idx + 1}:** {biobank_name} (Score: {lead_score:.1f}/10)",
-                    expanded=(idx == 0)  # Only expand the first (top-ranked) match
-                ):
-                    st.markdown(f"## {biobank_name}")
-                    
-                    # Skip location/specialty box - go straight to table
-                    # Display scoring breakdown
-                    display_scoring_breakdown(match)
-                    
-                    # Add separator before AI section
-                    st.markdown("---")
-                    
-                    # Display AI analysis section
-                    display_ai_analysis_section(
-                        match,
-                        biobank_name,
-                        selected_request,
-                        match_key
-                    )
-                    
-# Main application
-def main():
-    # Initialize session state
-    init_session_state()
-    
-    # No title - will be added on webpage
-    
-    # Render view selector cards
-    render_view_selector()
-    
-    st.markdown("---")
-    
-    # Load data
-    match_scores = load_match_data()
-    
-    if match_scores.empty:
-        st.error("No data available. Please check data files.")
-        return
-    
-    if st.session_state.view_mode == 'biobank':
-        render_biobank_view(match_scores)
-    else:
-        render_request_view(match_scores)
     
     # Footer with session info (for debugging)
     with st.sidebar:
