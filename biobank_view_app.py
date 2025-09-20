@@ -70,27 +70,25 @@ def init_session_state():
         st.session_state.view_mode = 'biobank'
     
     if 'anthropic_client' not in st.session_state:
-        # Initialize Anthropic client with API key from environment or secrets
+        # Debug: Check what's in environment
+        env_key = os.environ.get("ANTHROPIC_API_KEY")
+        st.write(f"Debug: Environment key exists: {env_key is not None}")
+        st.write(f"Debug: Environment key length: {len(env_key) if env_key else 0}")
+        
+        # Initialize Anthropic client with API key
         try:
-            # Try environment variable first (for Render)
-            api_key = os.environ.get("ANTHROPIC_API_KEY")
+            api_key = env_key  # Use environment variable directly
             
-            # Fall back to Streamlit secrets if not in environment
-            if not api_key:
-                try:
-                    api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
-                except:
-                    api_key = None
-                    
             if api_key:
                 st.session_state.anthropic_client = Anthropic(api_key=api_key)
-                # API key found - client initialized successfully
+                st.write("Debug: Anthropic client created successfully")
             else:
                 st.session_state.anthropic_client = None
-                # Don't show warnings in the embedded view
+                st.write("Debug: No API key found")
+                
         except Exception as e:
             st.session_state.anthropic_client = None
-            # Silently fail for embedded views
+            st.write(f"Debug: Exception creating client: {str(e)}")
 
 # Data loading functions
 @st.cache_data
