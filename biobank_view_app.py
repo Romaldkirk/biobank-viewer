@@ -70,25 +70,31 @@ def init_session_state():
         st.session_state.view_mode = 'biobank'
     
     if 'anthropic_client' not in st.session_state:
-        # Debug: Check what's in environment
         env_key = os.environ.get("ANTHROPIC_API_KEY")
-        st.write(f"Debug: Environment key exists: {env_key is not None}")
-        st.write(f"Debug: Environment key length: {len(env_key) if env_key else 0}")
         
-        # Initialize Anthropic client with API key
         try:
-            api_key = env_key  # Use environment variable directly
-            
-            if api_key:
-                st.session_state.anthropic_client = Anthropic(api_key=api_key)
+            if env_key:
+                # Workaround for the proxies issue
+                import anthropic
+                # Use base_url instead of problematic parameters
+                st.session_state.anthropic_client = anthropic.Client(
+                    api_key=env_key
+                )
                 st.write("Debug: Anthropic client created successfully")
             else:
                 st.session_state.anthropic_client = None
                 st.write("Debug: No API key found")
                 
         except Exception as e:
-            st.session_state.anthropic_client = None
-            st.write(f"Debug: Exception creating client: {str(e)}")
+            # Try alternative initialization
+            try:
+                st.session_state.anthropic_client = Anthropic(
+                    api_key=env_key
+                )
+                st.write("Debug: Client created with alternative method")
+            except:
+                st.session_state.anthropic_client = None
+                st.write(f"Debug: Both methods failed: {str(e)}")
 
 # Data loading functions
 @st.cache_data
