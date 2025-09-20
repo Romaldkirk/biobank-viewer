@@ -51,6 +51,8 @@ hide_streamlit_style = """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # Initialize session state
+import os  # Add this at the top of your file if not already there
+
 def init_session_state():
     """Initialize all session state variables"""
     if 'session_id' not in st.session_state:
@@ -66,17 +68,31 @@ def init_session_state():
         st.session_state.view_mode = 'biobank'
     
     if 'anthropic_client' not in st.session_state:
-        # Initialize Anthropic client with API key from secrets
+        # Initialize Anthropic client with API key from environment or secrets
         try:
-            api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
+            # Try environment variable first (for Render)
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
+            
+            # Fall back to Streamlit secrets if not in environment
+            if not api_key:
+                try:
+                    api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
+                except:
+                    api_key = None
+                    
             if api_key:
                 st.session_state.anthropic_client = Anthropic(api_key=api_key)
+                # Remove warning messages when key is found
             else:
                 st.session_state.anthropic_client = None
-                st.warning("AI Analysis unavailable - API key not configured")
+                # Only show warning if not embedded
+                if not st.query_params.get("embed", ["false"])[0] == "true":
+                    st.warning("AI Analysis unavailable - API key not configured")
         except Exception as e:
             st.session_state.anthropic_client = None
-            st.error(f"Failed to initialize AI client: {e}")
+            # Only show error if not embedded
+            if not st.query_params.get("embed", ["false"])[0] == "true":
+                st.error(f"Failed to initialize AI client: {e}")
 
 # Data loading functions
 @st.cache_data
